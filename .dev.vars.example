@@ -1,0 +1,15 @@
+# Local testing settings. Copy this file to `.dev.vars` (that file is ignored by
+# git, so your values never get committed).
+#
+# These are ONLY used by `npm run dev` on your computer. The live Worker uses the
+# secrets you set with `npx wrangler secret put`.
+
+# Any long random string works for local testing.
+GAME_SECRET=local-testing-secret-change-me-0123456789
+
+# Cloudflare's official Turnstile TEST secret key: it always passes.
+# Pair it with the test site key 1x00000000000000000000AA on the website.
+TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
+
+# The test keys report a placeholder hostname, so skip the hostname check locally.
+CHECK_TURNSTILE_HOSTNAME=false

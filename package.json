@@ -1,0 +1,15 @@
+{
+  "name": "prompt-injection-game",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A five-level prompt injection game. Each level adds one defense. Back end for courtneyroot.dev/projects/prompt-injection-game/.",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "wrangler": "^4.151.3"
+  }
+}

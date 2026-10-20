@@ -1,0 +1,68 @@
+// =============================================================================
+// wrangler.jsonc: settings for the Cloudflare Worker
+// =============================================================================
+// Wrangler is Cloudflare's command-line tool. When you run `npm run deploy`,
+// it reads this file to know what to upload and what to connect it to.
+//
+// Secrets (GAME_SECRET, TURNSTILE_SECRET_KEY) are NOT in this file, because
+// this file is public on GitHub. You set them once with:
+//   npx wrangler secret put GAME_SECRET
+//   npx wrangler secret put TURNSTILE_SECRET_KEY
+// See SETUP.md.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+
+  // The Worker's name. Its public URL will be
+  // https://prompt-injection-game.<your-subdomain>.workers.dev
+  "name": "prompt-injection-game",
+  "main": "src/index.js",
+
+  // Locks in Cloudflare's runtime behavior as of this date, so future platform
+  // changes don't silently change how the Worker runs.
+  "compatibility_date": "2026-10-01",
+
+  // Workers AI binding. Inside the code, `env.AI.run(...)` calls the model.
+  // No API key needed: Cloudflare connects the Worker to Workers AI for you.
+  "ai": { "binding": "AI" },
+
+  // The daily counter (see src/limiter.js). `env.LIMITER` in the code.
+  "durable_objects": {
+    "bindings": [{ "name": "LIMITER", "class_name": "DailyLimiter" }]
+  },
+
+  // Tells Cloudflare to create the DailyLimiter class with SQLite storage,
+  // which is the kind available on the Workers Free plan. Only add new
+  // entries to this list later; never edit or remove this one.
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["DailyLimiter"] }],
+
+  // Turn on Workers Logs so errors show up in the Cloudflare dashboard.
+  "observability": { "enabled": true },
+
+  // Public settings. Change these and redeploy to tune the game.
+  "vars": {
+    // Which websites may call this API. Comma-separated, exact origins (no
+    // trailing slash). Includes the local Astro dev server for testing.
+    "ALLOWED_ORIGINS": "https://courtneyroot.dev,https://www.courtneyroot.dev,https://courtneyroot-website.pages.dev,http://localhost:4321",
+
+    // Check that Turnstile was solved on one of the sites above. Leave "true".
+    // Your local .dev.vars file sets it to "false" for testing.
+    "CHECK_TURNSTILE_HOSTNAME": "true",
+
+    // The Workers AI model. Llama 3.1 8B (fast) is small, cheap per turn and
+    // good enough to be fooled in interesting ways. Model list:
+    // https://developers.cloudflare.com/workers-ai/models/
+    "MODEL": "@cf/meta/llama-3.1-8b-instruct-fp8-fast",
+
+    // Daily limits (reset at 00:00 UTC). See SETUP.md for how these numbers
+    // were chosen to stay inside the free 10,000 Neurons a day.
+    "MAX_TURNS_PER_DAY": 800,
+    "MAX_TURNS_PER_VISITOR": 40,
+    "MAX_GUESSES_PER_LEVEL": 10,
+
+    // Longest message a player can send, in characters.
+    "MAX_MESSAGE_CHARS": 400,
+
+    // How long a session lasts after passing Turnstile, in seconds (1 hour).
+    "SESSION_TTL_SECONDS": 3600
+  }
+}
