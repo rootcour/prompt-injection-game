@@ -168,8 +168,18 @@ async function handleSession(request, env, body, origin, allowedOrigins) {
     expectedHostnames,
   });
   if (!check.ok) {
+    // Log the reason so it shows up in the Worker's logs in the Cloudflare
+    // dashboard, and include it in the message so setup problems are easy to
+    // spot. The reasons are Cloudflare's generic error codes, for example
+    // "invalid-input-secret" (the TURNSTILE_SECRET_KEY secret is missing or
+    // wrong) or "wrong-hostname" (the page isn't on ALLOWED_ORIGINS). They
+    // reveal nothing secret.
+    console.warn('Turnstile check failed:', check.reason);
     return json(
-      { error: 'turnstile-failed', message: 'The human check did not pass. Refresh the page and try again.' },
+      {
+        error: 'turnstile-failed',
+        message: `The human check did not pass (${check.reason}). Refresh the page and try again.`,
+      },
       403,
       origin,
     );
