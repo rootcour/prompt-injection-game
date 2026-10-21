@@ -20,8 +20,6 @@
 //   HMAC value works like a tamper-proof signature: the server can check that it
 //   produced a value, and a player cannot forge one.
 
-import { WORDS } from './words.js';
-
 const encoder = new TextEncoder();
 
 // -----------------------------------------------------------------------------
@@ -80,20 +78,24 @@ export function utcDay(date = new Date()) {
 }
 
 // -----------------------------------------------------------------------------
-// derivePassword(secret, day, level)
-// Picks today's password for one level.
+// derivePassword(secret, day, level, words)
+// Picks today's password for one level from `words` (the list parsed from the
+// WORD_LIST secret by words.js).
 //
 // The same inputs always give the same word, so the server never needs to store
 // passwords anywhere: it recomputes them on every request. A new day gives new
 // words, so answers posted online stop working by the next day.
 // -----------------------------------------------------------------------------
-export async function derivePassword(secret, day, level) {
+export async function derivePassword(secret, day, level, words) {
+  // Without words there's no password to pick. index.js checks the list when a
+  // session starts, so this only fires if the secret is removed mid-session.
+  if (!Array.isArray(words) || words.length === 0) throw new Error('WORD_LIST is empty');
   const hex = await hmacHex(secret, `password|${day}|${level}`);
   // Use the first 8 hex characters (32 bits) as a number, then map it onto the
   // word list with the remainder operator. The tiny bias this creates toward
   // some words is irrelevant for a game.
-  const index = parseInt(hex.slice(0, 8), 16) % WORDS.length;
-  return WORDS[index];
+  const index = parseInt(hex.slice(0, 8), 16) % words.length;
+  return words[index];
 }
 
 // -----------------------------------------------------------------------------

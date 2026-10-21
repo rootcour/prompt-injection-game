@@ -34,8 +34,9 @@
 //   5. Workers AI cap   on the Free plan, Cloudflare stops AI calls after the
 //                       free daily allocation instead of billing
 //
-// Settings come from wrangler.jsonc ("vars") and from secrets you set with
-// `npx wrangler secret put`. See SETUP.md.
+// Settings come from wrangler.jsonc ("vars") and from three secrets set in the
+// Cloudflare dashboard: GAME_SECRET, TURNSTILE_SECRET_KEY and WORD_LIST (the
+// possible passwords, kept out of this public repo). See SETUP.md.
 
 import { LEVEL_COUNT, playTurn } from './levels.js';
 import {
@@ -48,6 +49,7 @@ import {
   verifyTurnstile,
   visitorId,
 } from './security.js';
+import { MIN_WORDS, parseWordList } from './words.js';
 
 // Wrangler needs the Durable Object class exported from the main file so it can
 // find it. See "durable_objects" in wrangler.jsonc.
@@ -171,6 +173,7 @@ async function handleSession(request, env, body, origin, allowedOrigins) {
   const missing = [];
   if (!turnstileSecret) missing.push('TURNSTILE_SECRET_KEY');
   if (!String(env.GAME_SECRET ?? '').trim()) missing.push('GAME_SECRET');
+  if (parseWordList(env.WORD_LIST).length < MIN_WORDS) missing.push(`WORD_LIST (at least ${MIN_WORDS} words)`);
   if (missing.length > 0) {
     console.error('Missing Worker secrets:', missing.join(', '));
     return json(
@@ -268,7 +271,7 @@ async function handleChat(request, env, body, origin) {
   }
 
   // --- Play the turn ----------------------------------------------------------
-  const password = await derivePassword(env.GAME_SECRET, day, level);
+  const password = await derivePassword(env.GAME_SECRET, day, level, parseWordList(env.WORD_LIST));
   try {
     const result = await playTurn(env, level, message, password);
     return json(result, 200, origin);
@@ -305,7 +308,7 @@ async function handleGuess(request, env, body, origin) {
   }
 
   // Guess limit per visitor, per level, per day. Without it, someone could
-  // script all 120 words in the list in a few seconds.
+  // script every common word in a few seconds.
   const day = utcDay();
   const visitor = await visitorId(env.GAME_SECRET, clientIp(request), day);
   const limit = await limiter(env).consume(day, [
@@ -319,7 +322,7 @@ async function handleGuess(request, env, body, origin) {
     );
   }
 
-  const password = await derivePassword(env.GAME_SECRET, day, level);
+  const password = await derivePassword(env.GAME_SECRET, day, level, parseWordList(env.WORD_LIST));
   return json({ correct: safeEqual(guess, password) }, 200, origin);
 }
 
