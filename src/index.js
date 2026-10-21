@@ -161,8 +161,30 @@ async function handleSession(request, env, body, origin, allowedOrigins) {
   const expectedHostnames =
     env.CHECK_TURNSTILE_HOSTNAME === 'false' ? null : allowedOrigins.map((o) => new URL(o).hostname);
 
+  // Setup check: make sure both secrets reach the Worker. If a secret is
+  // missing (wrong name, saved as a build variable, or saved as a plain Text
+  // variable that a later deploy removed), say so plainly instead of failing
+  // later with a confusing error. This reveals only whether a secret is set,
+  // never its value.
+  // .trim() removes stray spaces or line breaks that can sneak in when pasting.
+  const turnstileSecret = String(env.TURNSTILE_SECRET_KEY ?? '').trim();
+  const missing = [];
+  if (!turnstileSecret) missing.push('TURNSTILE_SECRET_KEY');
+  if (!String(env.GAME_SECRET ?? '').trim()) missing.push('GAME_SECRET');
+  if (missing.length > 0) {
+    console.error('Missing Worker secrets:', missing.join(', '));
+    return json(
+      {
+        error: 'setup-missing-secret',
+        message: `The game server is missing a setting: ${missing.join(' and ')}. Add it as a Secret in the Worker's Variables and Secrets.`,
+      },
+      500,
+      origin,
+    );
+  }
+
   const check = await verifyTurnstile({
-    secretKey: env.TURNSTILE_SECRET_KEY,
+    secretKey: turnstileSecret,
     token: body.turnstileToken,
     ip: clientIp(request),
     expectedHostnames,
