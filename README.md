@@ -44,7 +44,7 @@ Guesses go to `POST /api/guess`, which checks the word without calling the AI.
 | `src/levels.js` | The five levels: the system prompts, the output filter, the AI reviewer and the input screen. Start here if you want to change how a level behaves. |
 | `src/security.js` | Small helpers: daily passwords, session tokens, anonymous visitor IDs, and the Turnstile check. No AI code. |
 | `src/limiter.js` | A Durable Object that counts turns and guesses per day. |
-| `src/words.js` | The list of possible passwords. |
+| `src/words.js` | Reads the list of possible passwords from the `WORD_LIST` secret. The words themselves are not in this repo. |
 | `wrangler.jsonc` | Cloudflare settings: the AI model, the limits, which websites may call the API. |
 | `test/` | Tests for the security helpers and the level logic. They use a fake AI, so running them costs nothing. Run with `npm test`. |
 
@@ -54,7 +54,9 @@ Every file has comments explaining what each part does and why.
 
 **The password never leaves the server.** The website is static, so anything in its JavaScript is public. The passwords, the system prompts and the AI calls all live in the Worker.
 
-**Passwords are computed, not stored.** Each day, each level's password is picked from the word list using an HMAC of the date and level number with a secret key (`GAME_SECRET`). The server recomputes the password on every request, so there's no database of passwords to protect. Passwords change at midnight UTC, so answers shared online stop working the next day. The word list is public, which is fine because the secret decides the pick and guesses are limited to 10 per level per day.
+**Passwords are computed, not stored.** Each day, each level's password is picked from a word list using an HMAC of the date and level number with a secret key (`GAME_SECRET`). The server recomputes the password on every request, so there's no database of passwords to protect. Passwords change at midnight UTC, so answers shared online stop working the next day.
+
+**The word list is private too.** The possible passwords live in a Worker secret (`WORD_LIST`), not in this repo. If the list were public, players could skip the game: learn the letter count and first letter, then look the word up. Guesses are also limited to 10 per level per day.
 
 **One secret, labeled by use.** `GAME_SECRET` is used for passwords, session tokens and visitor IDs. Each use adds a different label before hashing (`password|...`, `session|...`, `visitor|...`), so the outputs can't be swapped for each other.
 
