@@ -197,10 +197,26 @@ async function handleSession(request, env, body, origin, allowedOrigins) {
     // wrong) or "wrong-hostname" (the page isn't on ALLOWED_ORIGINS). They
     // reveal nothing secret.
     console.warn('Turnstile check failed:', check.reason);
+
+    // When Cloudflare rejects the key itself, describe the key's SHAPE (never
+    // its value) to help spot a paste mistake. Real Turnstile secret keys are
+    // about 35 characters and start with "0x4". A 24-character value is almost
+    // certainly the public site key pasted by mistake. Quotes or dots mean
+    // extra characters came along with the paste. Length and the fixed "0x4"
+    // prefix reveal nothing that would help anyone guess the key.
+    let hint = '';
+    if (check.reason === 'invalid-input-secret') {
+      const looksLikeKey = /^0x4[A-Za-z0-9_-]+$/.test(turnstileSecret);
+      hint =
+        ` The Worker's TURNSTILE_SECRET_KEY is ${turnstileSecret.length} characters` +
+        (looksLikeKey ? ' and has the right format' : ' and does NOT look like a Turnstile key (check for quotes, spaces or dots)') +
+        '.';
+    }
+
     return json(
       {
         error: 'turnstile-failed',
-        message: `The human check did not pass (${check.reason}). Refresh the page and try again.`,
+        message: `The human check did not pass (${check.reason}).${hint} Refresh the page and try again.`,
       },
       403,
       origin,
