@@ -1,4 +1,5 @@
 // Tests for src/security.js and src/words.js. Run with: npm test
+// The real word list is a Worker secret, so these tests use a made-up list.
 // These use Node's built-in test runner, so there's nothing extra to install.
 
 import { test } from 'node:test';
@@ -14,14 +15,18 @@ import {
   verifyTurnstile,
   visitorId,
 } from '../src/security.js';
-import { WORDS } from '../src/words.js';
+import { MIN_WORDS, parseWordList } from '../src/words.js';
+
+// 60 made-up six-letter test words: TESTAA, TESTAB, ...
+const WORDS = Array.from({ length: 60 }, (_, i) => 'TEST' + String.fromCharCode(65 + Math.floor(i / 26), 65 + (i % 26)));
 
 const SECRET = 'test-secret';
 
-test('word list: big enough, letters only, 6 to 10 letters, no duplicates', () => {
-  assert.ok(WORDS.length >= 100, `only ${WORDS.length} words`);
-  for (const word of WORDS) assert.match(word, /^[A-Z]{6,10}$/, word);
-  assert.equal(new Set(WORDS).size, WORDS.length, 'duplicate words');
+test('parseWordList: splits on commas, spaces and new lines; uppercases; drops bad and duplicate words', () => {
+  const words = parseWordList('almanac, Bagpipe\nCANTEEN  canteen, cat, two words, abc-def, toolongwordhere');
+  assert.deepEqual(words, ['ALMANAC', 'BAGPIPE', 'CANTEEN']);
+  assert.deepEqual(parseWordList(undefined), []);
+  assert.ok(MIN_WORDS >= 50);
 });
 
 test('hmacHex gives a 64-character hex string and depends on the secret', async () => {
@@ -44,18 +49,19 @@ test('utcDay uses UTC, not local time', () => {
 });
 
 test('derivePassword: same inputs give same word; levels and days differ', async () => {
-  const p1 = await derivePassword(SECRET, '2026-10-20', 1);
-  assert.equal(p1, await derivePassword(SECRET, '2026-10-20', 1));
+  const p1 = await derivePassword(SECRET, '2026-10-20', 1, WORDS);
+  assert.equal(p1, await derivePassword(SECRET, '2026-10-20', 1, WORDS));
   assert.ok(WORDS.includes(p1));
 
   // Across 5 levels and 10 days we should see many different words.
   const seen = new Set();
   for (let day = 10; day < 20; day++) {
     for (let level = 1; level <= 5; level++) {
-      seen.add(await derivePassword(SECRET, `2026-10-${day}`, level));
+      seen.add(await derivePassword(SECRET, `2026-10-${day}`, level, WORDS));
     }
   }
   assert.ok(seen.size > 25, `only ${seen.size} distinct words in 50 picks`);
+  await assert.rejects(derivePassword(SECRET, '2026-10-20', 1, []));
 });
 
 test('lettersOnly strips spacing and punctuation', () => {
